@@ -7,7 +7,7 @@ import {
   onSettingsChange,
   saveSettings,
 } from "@/lib/storage";
-import { fetchSynonyms, isSingleWordSelection } from "@/lib/translate";
+import { fetchSynonyms, isEquivalentLanguage, isSingleWordSelection, translateText } from "@/lib/translate";
 
 import {
   createRangeSignature,
@@ -100,7 +100,7 @@ export function useInlineTranslation(container: HTMLDivElement) {
 
       const selectedBlocks = extractSelectionBlocks(selection, selectedText);
       const requestId = ++activeRequestId;
-      const nextState: TooltipState = {
+      const loadingState: TooltipState = {
         open: true,
         selectionSignature,
         selectedText,
@@ -116,10 +116,26 @@ export function useInlineTranslation(container: HTMLDivElement) {
         anchorRect: getAnchorRect(rect),
       };
 
-      activeSelectionSignatureRef.current = selectionSignature;
-      setTooltipState(nextState);
-
       try {
+        const selectionLanguage = await translateText(selectedText, settings.targetLanguage);
+
+        if (requestId !== activeRequestId) {
+          return;
+        }
+
+        if (
+          selectionLanguage.detectedLanguage &&
+          isEquivalentLanguage(selectionLanguage.detectedLanguage, settings.targetLanguage)
+        ) {
+          dismissedSelectionSignatureRef.current = selectionSignature;
+          activeSelectionSignatureRef.current = "";
+          setTooltipState(INITIAL_TOOLTIP_STATE);
+          return;
+        }
+
+        activeSelectionSignatureRef.current = selectionSignature;
+        setTooltipState(loadingState);
+
         const result = await translateSelectionBlocks(selectedBlocks, settings.targetLanguage);
 
         if (requestId !== activeRequestId) {
@@ -127,7 +143,7 @@ export function useInlineTranslation(container: HTMLDivElement) {
         }
 
         setTooltipState({
-          ...nextState,
+          ...loadingState,
           isLoading: false,
           translatedText: result.translatedText,
           translatedBlocks: result.translatedBlocks,
@@ -180,8 +196,9 @@ export function useInlineTranslation(container: HTMLDivElement) {
           return;
         }
 
+        activeSelectionSignatureRef.current = selectionSignature;
         setTooltipState({
-          ...nextState,
+          ...loadingState,
           isLoading: false,
           error:
             error instanceof Error

@@ -8,6 +8,26 @@ export type SynonymResult = {
   source: "selected" | "translated";
 };
 
+function normalizeLanguageCode(languageCode: string) {
+  const normalizedCode = languageCode.trim().toLowerCase().replace("_", "-");
+  const [baseCode] = normalizedCode.split("-");
+
+  return {
+    normalizedCode,
+    baseCode: baseCode ?? normalizedCode,
+  };
+}
+
+export function isEquivalentLanguage(sourceLanguage: string, targetLanguage: string) {
+  const normalizedSource = normalizeLanguageCode(sourceLanguage);
+  const normalizedTarget = normalizeLanguageCode(targetLanguage);
+
+  return (
+    normalizedSource.normalizedCode === normalizedTarget.normalizedCode ||
+    normalizedSource.baseCode === normalizedTarget.baseCode
+  );
+}
+
 function normalizeTranslationResponse(data: unknown): TranslationResult {
   const translationChunks = Array.isArray(data) ? data[0] : null;
   const detectedLanguage =
